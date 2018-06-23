@@ -1,0 +1,3 @@
+# rsync -av --delete --dry-run /Volumes/TOSHIBA\ EXT/* /Volumes/iomega
+
+# rsync -av --delete /Volumes/TOSHIBA\ EXT/* /Volumes/iomega
