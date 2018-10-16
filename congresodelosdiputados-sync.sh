@@ -3,11 +3,12 @@
 ##### Constants
 
 CURRENT_LEGISLATURA=12
-DOWNLOADDIR=$TMPDIR/manicato
+DOWNLOADDIR=$TMPDIR/congreso
+FAIL_SESION_RETRY=10
 
 ##### URLs
 
-FIREBASE_URL=https://com-yeniellandestoy-manicato.firebaseio.com
+FIREBASE_URL=https://com-yeniellandestoy-congreso.firebaseio.com
 LAST_UPLOADED_SESION_URL=lastUploadedSesion.json
 CONGRESO_SESION_URL="https://app.congreso.es/votacionesWeb/OpenData?sesion=sesionIndex&completa=1&legislatura=$CURRENT_LEGISLATURA"
 
@@ -18,13 +19,11 @@ mkdir $DOWNLOADDIR
 
 ##### Functions
 
-getXmlNodeValue()
-{
+getXmlNodeValue() {
 	echo $(xmllint --xpath "//$1/text()" $2 2>/dev/null)
 }
 
-PUT()
-{
+PUT() {
 	curl -s -X PUT -d "$1" "$FIREBASE_URL/$2" > /dev/null
 }
 
@@ -33,20 +32,26 @@ PUT()
 
 lastUploadedSesionUrl=$FIREBASE_URL/$LAST_UPLOADED_SESION_URL
 
-echo "\nGET Last Uploaded Sesion URL"
+echo "\nGET Last Uploaded Sesión URL"
 echo "$lastUploadedSesionUrl"
 
 lastUploadedSesion=$(curl -s $lastUploadedSesionUrl)
 
-echo "\nLast Sesion Uploaded: $lastUploadedSesion"
+echo "\nLast Sesión Uploaded: $lastUploadedSesion"
 
 ##### Download sesiones
 
-for index in {1..95}; do
+sesionRetry=0
+
+for index in {1..500}; do
+	if [[ $sesionRetry -eq FAIL_SESION_RETRY ]]; then
+		break
+	fi
+
 	sesionIndex=$(($lastUploadedSesion+$index))
 	getSesionUrl=${CONGRESO_SESION_URL/sesionIndex/$sesionIndex}
 
-	echo "\nGET Sesion zip file URL"
+	echo "\nGET Sesión zip file URL"
 	echo $getSesionUrl 
 
 	sesionZipFile=$DOWNLOADDIR/sesion$sesionIndex.zip
@@ -56,11 +61,13 @@ for index in {1..95}; do
 	sesionZipFileSize=$(wc -c $sesionZipFile | awk '{print $1}')
 
 	if [[ $sesionZipFileSize -eq 0 ]]; then
-		echo "No sesion"
+		echo "Sesión doesn't exist in https://app.congreso.es"
+		sesionRetry=$((sesionRetry+1))
 	else
-		echo "Sesion downloaded"
+		echo "Sesión downloaded"
 		unzip -q $sesionZipFile -d $DOWNLOADDIR
 		lastDownloadedSesion=$sesionIndex
+		sesionRetry=0
 	fi
 
 	rm -rf $sesionZipFile
@@ -104,7 +111,7 @@ if [ "$(ls -A $DOWNLOADDIR)" ]; then
 			\"noVotan\": \"$votacionNoVotan\"\
 		}"
 
-		echo "\nUploading to Firebase votacion $votacionId"
+		echo "\nUploading to Firebase Votación $votacionId"
 
 		PUT "$votacionJson" "votaciones/$votacionId.json"
 	done
@@ -113,7 +120,7 @@ fi
 ##### Update Last Uploaded Session
 
 if [[ ! -z "$lastDownloadedSesion" ]]; then
-	echo "\nUpdate Last Uploaded Session to $lastDownloadedSesion"
+	echo "\nUpdate Last Uploaded Sesión to $lastDownloadedSesion"
 
 	PUT $lastDownloadedSesion "$LAST_UPLOADED_SESION_URL"
 fi
